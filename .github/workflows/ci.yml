@@ -1,0 +1,53 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - name: boot the server and exercise the real request path
+        run: |
+          uvicorn app.server:app --port 8000 &
+          for i in $(seq 30); do curl -sf localhost:8000/health && break; sleep 1; done
+          KEY=$(curl -sf -X POST localhost:8000/v1/keys \
+                -H 'content-type: application/json' \
+                -d '{"name":"ci","scopes":["admin"]}' | python -c 'import sys,json;print(json.load(sys.stdin)["api_key"])')
+          REPO=$(curl -sf -X POST localhost:8000/v1/repos \
+                -H "authorization: Bearer $KEY" -H 'content-type: application/json' \
+                -d '{"name":"demo","files":{"a.py":"def parse_config(t):\n    return {}\n"}}' \
+                | python -c 'import sys,json;print(json.load(sys.stdin)["repo_id"])')
+          for i in $(seq 30); do
+            S=$(curl -sf localhost:8000/v1/repos/$REPO -H "authorization: Bearer $KEY" \
+                | python -c 'import sys,json;print(json.load(sys.stdin)["status"])')
+            [ "$S" = "ready" ] && break; sleep 1
+          done
+          [ "$S" = "ready" ] || { echo "indexing never completed"; exit 1; }
+          curl -sf -X POST localhost:8000/v1/ask -H "authorization: Bearer $KEY" \
+               -H 'content-type: application/json' \
+               -d "{\"repo_id\":\"$REPO\",\"question\":\"parse config\"}" | tee /dev/stderr \
+            | python -c 'import sys,json;a=json.load(sys.stdin);assert a["citations"],a;print("ok")'
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t codebase-qa .

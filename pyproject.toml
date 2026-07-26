@@ -1,0 +1,16 @@
+[project]
+name = "codebase-qa"
+version = "0.1.0"
+description = "Codebase Q&A service with auth, rate limiting, a durable job queue, caching, cost tracking and tracing"
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.27", "pydantic>=2.5"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
