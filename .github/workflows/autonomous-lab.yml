@@ -22,7 +22,7 @@ jobs:
     if: github.event_name != 'pull_request_target'
     permissions:
       contents: read
-    uses: asp53826/portfolio-ops/.github/workflows/repo-medic.yml@v1.0.0
+    uses: asp53826/portfolio-ops/.github/workflows/repo-medic.yml@v1.2.0
     with:
       runtime: python
       runtime-version: "3.12"
